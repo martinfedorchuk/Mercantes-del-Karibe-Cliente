@@ -1,7 +1,7 @@
 var appJs = (function  () {
   var game = new Phaser.Game(800, 600, Phaser.AUTO, "game-container", { preload: preload, create: create, update: update });
 
-  var ocean, port, submarine, shadowTexture;
+  var ocean, port, submarine, red, shadowTexture;
 
   var currentSpeed = 0;
   var LIGHT_RADIUS = 100;
@@ -23,9 +23,12 @@ var appJs = (function  () {
     game.load.image('ocean', 'assets/pattern-land.png');
     game.load.image('port', 'assets/port.png');
     game.load.image('submarine', 'assets/ship-grey.png');
+    game.load.image('red', 'assets/ship-red.png');
   }
 
   function create() {
+    webSocketJs.setUser('submarine');
+
     game.world.setBounds(0, 0, 10000, 10000);
     game.scale.pageAlignHorizontally = true;
     game.scale.pageAlignVertically = true;
@@ -36,10 +39,15 @@ var appJs = (function  () {
     ocean = game.add.tileSprite(0, 0, 800, 600, 'ocean');
     ocean.fixedToCamera = true;
 
-    submarine = game.add.sprite(100, 300, 'submarine');
+    submarine = game.add.sprite(300, 300, 'submarine');
     submarine.anchor.setTo(0.5, 0.5);
     game.physics.enable(submarine, Phaser.Physics.ARCADE);
     submarine.body.collideWorldBounds = true;
+
+    red = game.add.sprite(100, 300, 'red');
+    red.anchor.setTo(0.5, 0.5);
+    game.physics.enable(red, Phaser.Physics.ARCADE);
+    red.body.collideWorldBounds = true;
 
     port = game.add.sprite(0, 0, 'port');
     game.physics.enable(port, Phaser.Physics.ARCADE);
@@ -69,11 +77,26 @@ var appJs = (function  () {
 
     // This just tells the engine it should update the texture cache
     shadowTexture.dirty = true;
-};
+  };
 
   function update() {
     game.physics.arcade.collide(port, submarine);
+    game.physics.arcade.collide(red, submarine, function() {
+      red.body.velocity = { x: 0, y: 0 };
+      submarine.body.velocity = { x: 0, y: 0 };
+      console.log("Boom!");
+    });
+    
     updateShadowTexture();
+    
+    webSocketJs.sendMessage(submarine.x, submarine.y, submarine.angle);
+     
+    webSocketJs.setOnMessage(function (message) {
+        var jsonMsg = JSON.parse(message.data);
+        if (jsonMsg.user == "red") {
+          game.physics.arcade.accelerateToXY(red, jsonMsg.x, jsonMsg.y, 300);      
+        }
+    });
 
     // if (cursors.left.isDown)
     // {

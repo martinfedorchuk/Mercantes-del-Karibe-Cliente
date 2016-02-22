@@ -23,9 +23,12 @@ var appJs = (function  () {
     game.load.image('ocean', 'assets/pattern-land.png');
     game.load.image('port', 'assets/port.png');
     game.load.image('red', 'assets/ship-red.png');
+    game.load.image('submarine', 'assets/ship-grey.png');
   }
 
   function create() {
+    webSocketJs.setUser('red');
+
     game.world.setBounds(0, 0, 10000, 10000);
     game.scale.pageAlignHorizontally = true;
     game.scale.pageAlignVertically = true;
@@ -40,6 +43,11 @@ var appJs = (function  () {
     red.anchor.setTo(0.5, 0.5);
     game.physics.enable(red, Phaser.Physics.ARCADE);
     red.body.collideWorldBounds = true;
+
+    submarine = game.add.sprite(300, 300, 'submarine');
+    submarine.anchor.setTo(0.5, 0.5);
+    game.physics.enable(submarine, Phaser.Physics.ARCADE);
+    submarine.body.collideWorldBounds = true;
 
     port = game.add.sprite(0, 0, 'port');
     game.physics.enable(port, Phaser.Physics.ARCADE);
@@ -61,17 +69,29 @@ var appJs = (function  () {
     shadowTexture.context.fillStyle = 'rgb(100, 100, 100)';
     shadowTexture.context.fillRect(0, 0, game.width, game.height);
 
-    // Draw circle of light
     shadowTexture.context.beginPath();
     shadowTexture.context.fillStyle = 'rgb(255, 255, 255)';
     shadowTexture.context.arc(red.x, red.y, LIGHT_RADIUS, 0, Math.PI*2);
     shadowTexture.context.fill();
 
-    // This just tells the engine it should update the texture cache
     shadowTexture.dirty = true;
-};
+  };
 
   function update() {
+    webSocketJs.sendMessage(red.x, red.y, red.angle);
+    game.physics.arcade.collide(red, submarine, function() {
+      submarine.body.velocity = { x: 0, y: 0 };
+      red.body.velocity = { x: 0, y: 0 };
+      console.log("Boom!");
+    });
+     
+    webSocketJs.setOnMessage(function (message) {
+        var jsonMsg = JSON.parse(message.data);
+        if (jsonMsg.user == "submarine") {
+          game.physics.arcade.accelerateToXY(submarine, jsonMsg.x, jsonMsg.y, 300);
+        }
+    });
+
     game.physics.arcade.collide(port, red);
     updateShadowTexture();
 
