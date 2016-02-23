@@ -25,12 +25,6 @@ var mapJs = (function() {
   };
 
   var drawIslands = function() {
-    var numberOfIslands = 10;
-    var xCoord, yCoord;
-
-    for (var i = 0; i < numberOfIslands; i++) {
-      xCoord = getRandomInt(0, mapWidth);
-      yCoord = getRandomInt(0, mapHeight);
 
       map.rect(xCoord, yCoord, 50, 50).addClass("island");
     }
