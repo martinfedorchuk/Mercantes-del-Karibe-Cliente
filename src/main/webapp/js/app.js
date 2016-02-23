@@ -1,9 +1,16 @@
 var appJs = (function  () {
-  var game = new Phaser.Game(800, 600, Phaser.AUTO, "game-container", { preload: preload, create: create, update: update });
+  var game = new Phaser.Game(800, 600, Phaser.AUTO, "game-container", { preload: preload, create: create, update: update, render: render });
 
-  var ocean, port, submarine, red, shadowTexture;
+  var ocean, port, submarine, red, shadowTexture, lightSprite, islands,
+    currentSpeed = 0;
 
-  var currentSpeed = 0;
+  var worldBounds = { 
+    xTopLeft: 0,
+    yTopLeft: 0,
+    xBottomRight: 5000,
+    yBottomRight: 5000
+  };
+
   var LIGHT_RADIUS = 100;
 
   $(document).ready(function() {
@@ -24,20 +31,22 @@ var appJs = (function  () {
     game.load.image('port', 'assets/port.png');
     game.load.image('submarine', 'assets/ship-grey.png');
     game.load.image('red', 'assets/ship-red.png');
+    game.load.image('island', 'assets/pattern-island.png');
   }
 
   function create() {
     webSocketJs.setUser('submarine');
 
-    game.world.setBounds(0, 0, 10000, 10000);
+    game.stage.backgroundColor = '#2c8af4';
+    game.world.setBounds(worldBounds.xTopLeft, worldBounds.yTopLeft, worldBounds.xBottomRight, worldBounds.yBottomRight);
     game.scale.pageAlignHorizontally = true;
     game.scale.pageAlignVertically = true;
     game.scale.refresh();
 
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
-    ocean = game.add.tileSprite(0, 0, 800, 600, 'ocean');
-    ocean.fixedToCamera = true;
+    //ocean = game.add.tileSprite(0, 0, 800, 600, 'ocean');
+    //ocean.fixedToCamera = true;
 
     submarine = game.add.sprite(300, 300, 'submarine');
     submarine.anchor.setTo(0.5, 0.5);
@@ -63,30 +72,34 @@ var appJs = (function  () {
     lightSprite.blendMode = Phaser.blendModes.MULTIPLY;
     game.input.activePointer.x = submarine.x;
     game.input.activePointer.y = submarine.y;
+
+    generateIslands();
   }
 
   var updateShadowTexture = function() {
     shadowTexture.context.fillStyle = 'rgb(100, 100, 100)';
     shadowTexture.context.fillRect(0, 0, game.width, game.height);
 
-    // Draw circle of light
+    // Dibujamos el circulo de luz
     shadowTexture.context.beginPath();
     shadowTexture.context.fillStyle = 'rgb(255, 255, 255)';
-    shadowTexture.context.arc(submarine.x, submarine.y, LIGHT_RADIUS, 0, Math.PI*2);
+    shadowTexture.context.arc(submarine.x - game.camera.x, submarine.y - game.camera.y, LIGHT_RADIUS, 0, Math.PI*2);
     shadowTexture.context.fill();
 
-    // This just tells the engine it should update the texture cache
+    // Actualiza el cache de la textura
     shadowTexture.dirty = true;
   };
 
   function update() {
     game.physics.arcade.collide(port, submarine);
+    game.physics.arcade.collide(submarine, islands);
     game.physics.arcade.collide(red, submarine, function() {
       red.body.velocity = { x: 0, y: 0 };
       submarine.body.velocity = { x: 0, y: 0 };
       console.log("Boom!");
     });
     
+    lightSprite.reset(game.camera.x, game.camera.y); 
     updateShadowTexture();
     
     webSocketJs.sendMessage(submarine.x, submarine.y, submarine.angle);
@@ -97,24 +110,6 @@ var appJs = (function  () {
           game.physics.arcade.accelerateToXY(red, jsonMsg.x, jsonMsg.y, 300);      
         }
     });
-
-    // if (cursors.left.isDown)
-    // {
-    //   currentSpeed = 300;
-    //   if ((submarine.angle > 0) && (submarine.angle < 90)) {
-    //     submarine.angle += 4;   
-    //   }
-    // }
-    // else if (cursors.right.isDown)
-    // {
-    //   currentSpeed = 300;
-    //   submarine.angle += 4;
-    // } else {
-    //     if (currentSpeed > 0)
-    //     {
-    //       currentSpeed -= 4;
-    //     }
-    // }
 
     if (cursors.left.isDown)
     {
@@ -149,7 +144,41 @@ var appJs = (function  () {
       game.physics.arcade.velocityFromRotation(submarine.rotation, currentSpeed, submarine.body.velocity);
     }
 
-    ocean.tilePosition.x = -game.camera.x;
-    ocean.tilePosition.y = -game.camera.y;
-  }   
+    //ocean.tilePosition.x = -game.camera.x;
+    //ocean.tilePosition.y = -game.camera.y;
+  }
+
+  function render() {
+    game.debug.body(submarine);
+  }
+
+  var generateIslands = function() {
+    islands = game.add.group();
+
+    // Seteo un valor random con la cantidad máxim
+    var numberOfIslands = game.rnd.integerInRange(50, 70);
+    
+    var i = 0, x, y, width, height, island;
+    var caribeanZoneMin = Math.floor(worldBounds.yBottomRight / 10);
+    var caribeanZoneMax = worldBounds.yBottomRight - Math.floor(worldBounds.yBottomRight / 10);
+
+    // Genero las islas
+    for (i; i < numberOfIslands; i++)
+    {
+      x = game.rnd.between(worldBounds.xBottomRight / numberOfIslands * i, 
+        worldBounds.xBottomRight / numberOfIslands * (i + 1));
+
+      y = game.rnd.between(caribeanZoneMin, caribeanZoneMax)
+      
+      width = game.rnd.between(100, 200);
+      height = game.rnd.between(100, 200);
+
+      island = game.add.tileSprite(x, y, width, height, 'island');
+      
+      game.physics.arcade.enable(island);
+      island.body.immovable = true;
+      island.anchor.setTo(0.5, 0.5);
+      islands.add(island);
+    }
+  }
 })();
