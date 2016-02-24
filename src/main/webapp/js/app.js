@@ -2,7 +2,9 @@ var appJs = (function  () {
   var game = new Phaser.Game(800, 600, Phaser.AUTO, "game-container", { preload: preload, create: create, update: update, render: render });
 
   var ocean, port, submarine, red, shadowTexture, lightSprite, islands,
-    currentSpeed = 0;
+    currentSpeed = 0, bmd, mask;
+    var firstTime = true;
+
 
   var worldBounds = { 
     xTopLeft: 0,
@@ -16,12 +18,11 @@ var appJs = (function  () {
   var caribeanZoneMin = Math.floor(worldBounds.yBottomRight / 10);
   var caribeanZoneMax = worldBounds.yBottomRight - Math.floor(worldBounds.yBottomRight / 10);
 
-  var LIGHT_RADIUS = 100;
+  var LIGHT_RADIUS = 200;
 
   $(document).ready(function() {
     $("#btnLight").click(function(event) {
       event.preventDefault();
-      game.camera.scale = new Phaser.Point(100, 100);
     });
   });
 
@@ -38,21 +39,29 @@ var appJs = (function  () {
     game.load.image('submarine', 'assets/ship-grey.png');
     game.load.image('red', 'assets/ship-red.png');
     game.load.image('island', 'assets/pattern-island.png');
+    game.load.image('mask', 'assets/mask.png');
   }
 
   function create() {
-    // webSocketJs.setUser('submarine');
-
     // Creo el mundo
-    game.stage.backgroundColor = '#2c8af4';
-    game.world.setBounds(worldBounds.xTopLeft, worldBounds.yTopLeft, worldBounds.xBottomRight, worldBounds.yBottomRight);
+    game.stage.backgroundColor = '#000000';
+    game.world.setBounds(0, 0, worldBounds.xBottomRight, worldBounds.yBottomRight);
     game.scale.pageAlignHorizontally = true;
     game.scale.pageAlignVertically = true;
     game.scale.refresh();
 
+    caribbean = game.add.graphics(0, 0); 
+    caribbean.beginFill(0x2c8af4);
+    caribbean.drawRect(worldBounds.xTopLeft, worldBounds.yTopLeft, worldBounds.xBottomRight, worldBounds.yBottomRight);
+    caribbean.endFill();
+
     // Inicio el motor fisico
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
+    red = game.add.sprite(200, 500, 'red');
+    red.anchor.setTo(0.5, 0.5);
+    game.physics.enable(red, Phaser.Physics.ARCADE);
+    red.body.collideWorldBounds = true;
 
     // Genero la zona del caribe
     generateCaribbean();
@@ -60,17 +69,16 @@ var appJs = (function  () {
     generateIslands();
 
     // Creo el submarino en una posicion aleatoria del caribe
-    submarine = game.add.sprite(game.rnd.between(caribeanZoneMin, caribeanZoneMax), 
-                                game.rnd.between(caribeanZoneMin, caribeanZoneMax), 'submarine');
+    var rndX = game.rnd.between(caribeanZoneMin, caribeanZoneMax);
+    var rndY = game.rnd.between(caribeanZoneMin, caribeanZoneMax);
+
+    submarine = game.add.sprite(100, 300, 'submarine');
     submarine.anchor.setTo(0.5, 0.5);
     game.physics.enable(submarine, Phaser.Physics.ARCADE);
     submarine.body.collideWorldBounds = true;
 
-    red = game.add.sprite(100, 300, 'red');
-    red.anchor.setTo(0.5, 0.5);
-    game.physics.enable(red, Phaser.Physics.ARCADE);
-    red.body.collideWorldBounds = true;
-
+    webSocketJs.setUser('submarine');
+    //webSocketJs.sendMessage(submarine.x, submarine.y, submarine.angle);
 
     // Pinta la tierra de new york
     newYork = game.add.tileSprite(worldBounds.xTopLeft, worldBounds.yTopLeft, worldBounds.xBottomRight, 129, 'land');
@@ -107,17 +115,27 @@ var appJs = (function  () {
 
     cursors = game.input.keyboard.createCursorKeys();
 
-    shadowTexture = game.add.bitmapData(game.width, game.height);
-    lightSprite = game.add.image(0, 0, shadowTexture);
-    lightSprite.blendMode = Phaser.blendModes.MULTIPLY;
+    //shadowTexture = game.add.bitmapData(game.width + 100, game.height + 100);
+    //lightSprite = game.add.image(0, 0, shadowTexture);
+    //lightSprite.blendMode = Phaser.blendModes.MULTIPLY;
+
+    mask = game.add.graphics(0, 0);
+    //  Shapes drawn to the Graphics object must be filled.
+    mask.beginFill(0x000000);
+
+    //  Here we'll draw a circle
+    mask.drawCircle(0, 0, 400);
+
+    game.world.mask = mask;
+
     game.input.activePointer.x = submarine.x;
     game.input.activePointer.y = submarine.y;
 
   }
 
   var updateShadowTexture = function() {
-    shadowTexture.context.fillStyle = 'rgb(100, 100, 100)';
-    shadowTexture.context.fillRect(0, 0, game.width, game.height);
+    shadowTexture.context.fillStyle = 'rgb(10, 10, 10)';
+    shadowTexture.context.fillRect(-10, -10, game.width + 100, game.height + 100);
 
     // Dibujamos el circulo de luz
     shadowTexture.context.beginPath();
@@ -143,17 +161,28 @@ var appJs = (function  () {
       console.log("Boom!");
     });
     
-    lightSprite.reset(game.camera.x, game.camera.y); 
-    updateShadowTexture();
+    mask.x = submarine.body.x + 36;
+    mask.y = submarine.body.y + 36;
+
+    //lightSprite.reset(game.camera.x, game.camera.y); 
     
-    // webSocketJs.sendMessage(submarine.x, submarine.y, submarine.angle);
-     
-    // webSocketJs.setOnMessage(function (message) {
-    //     var jsonMsg = JSON.parse(message.data);
-    //     if (jsonMsg.user == "red") {
-    //       game.physics.arcade.accelerateToXY(red, jsonMsg.x, jsonMsg.y, 300);      
-    //     }
-    // });
+    //updateShadowTexture();
+    
+    //webSocketJs.sendMessage(submarine.x, submarine.y, submarine.angle);
+  
+    webSocketJs.setOnMessage(function (message) {
+        var jsonMsg = JSON.parse(message.data);
+        console.log(jsonMsg);
+        if (jsonMsg.user == "red") {
+          red.body.x = jsonMsg.x;
+          red.body.y = jsonMsg.y;
+          //game.physics.arcade.accelerateToXY(red, jsonMsg.x, jsonMsg.y, 300);
+        }
+    });
+
+    // if (red.body.velocity > 0) {
+    //   red.body.velocity -= 5;
+    // }
 
     if (cursors.left.isDown)
     {
@@ -183,8 +212,8 @@ var appJs = (function  () {
   }
 
   function render() {
-    game.debug.body(submarine);
-    game.debug.body(port);
+    //game.debug.body(submarine);
+    //game.debug.body(port);
   }
 
   var generateCaribbean = function() {
